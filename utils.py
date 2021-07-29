@@ -77,22 +77,30 @@ def plot_price_seasonality(df):
     df['day'] = df['purchase_date'].dt.day
     df['weekday'] = df['purchase_date'].dt.weekday
 
-    fig, axes = plt.subplots(1, 3, sharey=True, figsize=(18, 4))
-    sns.barplot(x="month", y="price", data=df, ax=axes[0])
-    sns.barplot(x="day", y="price", data=df, ax=axes[1])
-    sns.barplot(x="weekday", y="price", data=df, ax=axes[2])
+    fig, axes = plt.subplots(2, 3, figsize=(20, 6))
+    sns.countplot(x="month", data=df, ax=axes[1,0])
+    sns.barplot(x="month", y="price", data=df, ax=axes[0,0])
+    
+    sns.countplot(x="day", data=df, ax=axes[1,1])
+    sns.barplot(x="day", y="price", data=df, ax=axes[0,1])
+    
+    sns.countplot(x="weekday", data=df, ax=axes[1,2])
+    sns.barplot(x="weekday", y="price", data=df, ax=axes[0,2])
 
-    fig.supylabel('Price ($)')
     units = ['Month', 'Day', 'Weekday']
     for i in range(len(units)):
-        axes[i].set_title(f'Price Seasonality vs {units[i]}')
-        axes[i].set_xlabel(units[i])
+        axes[0,i].set_title(f'Price Seasonality vs {units[i]}')
+        axes[0,i].set_xlabel(units[i])
 
-    axes[0].set_xticks(range(12))
-    axes[0].set_xticklabels(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']) 
+    axes[1,0].set_xticks(range(12))
+    axes[1,0].set_xticklabels(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']) 
+    axes[0,0].set_xticks(range(12))
+    axes[0,0].set_xticklabels(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']) 
 
-    axes[2].set_xticks(range(7))
-    axes[2].set_xticklabels(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'])
+    axes[1,2].set_xticks(range(7))
+    axes[1,2].set_xticklabels(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'])
+    axes[0,2].set_xticks(range(7))
+    axes[0,2].set_xticklabels(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'])
 
 def plot_price_ar(df):
     """Plot autocorrelation and partial auto correlation for monthly median price
@@ -283,9 +291,10 @@ class freq_transformer(BaseEstimator, TransformerMixin):
         top_filter = X.map(lambda x: set(self.splits_items(x)) & top_freqs, na_action='ignore')
         top_freq_X = top_filter.loc[top_filter.map(len, na_action='ignore') > 0].map(lambda x: ','.join(x))
         top_freq_y = y[y.index.isin(top_freq_X.index)]
+        plt.figure(figsize=(10,4))
         sns.boxplot(x=top_freq_X, y=top_freq_y, **kwargs)
         
-    def plot_freq_price(self, X, y, **kwargs):
+    def plot_freq_price(self, X, y, line_options={}, hist_options={}):
         """Plot boxplots for the transformed frequency statistics agains the target
 
         Args:
@@ -294,11 +303,11 @@ class freq_transformer(BaseEstimator, TransformerMixin):
         """
         df = self.transform(X, y=y)
         num_plots = len(self.features)
-        fig, axes = plt.subplots(1, num_plots, figsize=(5 * num_plots, 4))
+        fig, axes = plt.subplots(2, num_plots, figsize=(7 * num_plots, 8))
         fig.suptitle(f'{X.name.upper()} Frequencies VS. Price')
         for i, col in enumerate(self.features):
-            sns.boxplot(x=df[col], y=y, ax=axes[i], **kwargs)
-
+            sns.lineplot(x=df[col], y=y, ax=axes[0,i], **line_options)
+            sns.histplot(x=df[col], ax=axes[1,i], **hist_options)
             
 class dummy_transformer(BaseEstimator, TransformerMixin):
     """Sklearn transformer object to transform categorical variable to dummy variables;
@@ -325,6 +334,26 @@ class dummy_transformer(BaseEstimator, TransformerMixin):
                         res[item][idx] = 1
         
         self.df = pd.DataFrame(res)
+        return self.df
+    
+    def get_feature_names(self):
+        return self.df.columns
+    
+class ordinal_transformer(BaseEstimator, TransformerMixin):
+    """Sklearn transformer object to transform product levels to ordinal numbers
+    """
+    def __init__(self):
+        self.maps = {'unrated': 0,
+                    'basic': 1,
+                    'intermediate': 2,
+                    'advanced': 3,
+                    'super advanced': 4}
+        
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X, y=None):        
+        self.df = pd.DataFrame({'product_level': X.map(self.maps)})
         return self.df
     
     def get_feature_names(self):
